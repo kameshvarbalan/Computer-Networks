@@ -2,71 +2,89 @@ import java.util.*;
 
 class Graph {
     private final int numNodes;
-    private final int[][] adjacencyMatrix;
+    private final List<List<Edge>> adjList;
+
+    static class Edge{
+        int target, weight;
+        Edge(int target, int weight){
+            this.target = target;
+            this.weight = weight;
+        }
+    }
 
     Graph(int numNodes){
         this.numNodes = numNodes;
-        adjacencyMatrix = new int[numNodes][numNodes];
-        for(int i=0; i <numNodes; i++){
-            Arrays.fill(adjacencyMatrix[i], Integer.MAX_VALUE);
-            adjacencyMatrix[i][i] = 0;
+        adjList = new ArrayList<>();
+        for(int i=0; i<numNodes; i++){
+            adjList.add(new ArrayList<>());
         }
     }
 
     void addEdge(int src, int dest, int weight){
-        adjacencyMatrix[src][dest] = weight;
-        adjacencyMatrix[dest][src] = weight;
+        adjList.get(src).add(new Edge(dest, weight));
+        adjList.get(dest).add(new Edge(src, weight));
     }
 
-    Map<Integer, Integer> dijkstra(int src) {
+    void dijkstra(int start){
         int[] distances = new int[numNodes];
-        boolean[] visited = new boolean[numNodes];
+        int[] predecessors = new int[numNodes];
         Arrays.fill(distances, Integer.MAX_VALUE);
-        distances[src] = 0;
-        PriorityQueue<int[]> pq = new PriorityQueue<>(Comparator.comparingInt(a -> a[1]));
-        pq.add(new int[]{src, 0});
-        Map<Integer, Integer> routingTable = new HashMap<>();
+        Arrays.fill(predecessors, -1);
+        distances[start] = 0;
+        PriorityQueue<int[]> pq = new PriorityQueue<>(Comparator.comparingInt(a->a[1]));
+        pq.offer(new int[]{start, 0});
+        int iteration = 0;
         while(!pq.isEmpty()){
-            int[] nodeInfo = pq.poll();
-            int u = nodeInfo[0];
-            if (visited[u]) continue;
-            visited[u] = true;
-            for(int v=0; v<numNodes; v++){
-                if(adjacencyMatrix[u][v]!=Integer.MAX_VALUE && !visited[v]){
-                    int newDist = distances[u] + adjacencyMatrix[u][v];
-                    if(newDist<distances[v]){
-                        distances[v] = newDist;
-                        pq.add(new int[]{v, distances[v]});
-                        routingTable.put(v, u);
-                    }
+            int[] current = pq.poll();
+            int node = current[0];
+            int distance = current[1];
+            if(distance > distances[node]) continue;
+            System.out.println("\nIteration " + (++iteration));
+            System.out.println("Discovering Node " + node);
+            System.out.println("Current Shortest Distance: " + distances[node]);
+            for(Edge edge : adjList.get(node)){
+                int neighbor = edge.target;
+                int newDist = distances[node] + edge.weight;
+                if(newDist < distances[neighbor]){
+                    distances[neighbor] = newDist;
+                    predecessors[neighbor] = node;
+                    pq.offer(new int[]{neighbor, newDist});
                 }
             }
+            printDistances(distances);
         }
-        return routingTable;
+        System.out.println("\nFinal Routing Table for Node " + start + ":");
+        printRoutingTable(start, distances, predecessors);
     }
 
-    void displayRoutingTables(){
-        for(int i=0; i<numNodes; i++){
-            Map<Integer, Integer> routingTable = dijkstra(i);
-            System.out.println("Routing Table for Node " + i + ":");
-            System.out.printf("%-15s %-15s\n", "Destination", "Next Hop");
-            for(int j=0; j<numNodes; j++){
-                if(j!=i){
-                    Integer nextHop = routingTable.getOrDefault(j, -1);
-                    if(nextHop!=-1){
-                        System.out.printf("%-15d %-15d\n", j, nextHop);
-                    }
-                    else{
-                        System.out.printf("%-15d %-15s\n", j, "Unreachable");
-                    }
-                }
-            }
-            System.out.println();
+    private void printDistances(int[] distances){
+        System.out.println("Node   Distance");
+        for(int i=0; i<distances.length; i++){
+            System.out.printf("%-7d %-18d\n", i, (distances[i]==Integer.MAX_VALUE? -1:distances[i]));
         }
+    }
+
+    private void printRoutingTable(int start, int[] distances, int[] predecessors){
+        System.out.printf("%-15s %-15s %-15s\n", "Destination", "Distance", "Next Hop");
+        for(int i=0; i<numNodes; i++){
+            if(i!=start){
+                int nextHop = findNextHop(start, i, predecessors);
+                System.out.printf("%-15d %-15d %-15d\n", i, 
+                (distances[i]==Integer.MAX_VALUE? "inf":distances[i]), nextHop);
+            }
+        }
+    }
+
+    private int findNextHop(int start, int dest, int[] predecessors){
+        int current = dest;
+        while(predecessors[current]!=start && predecessors[current]!=-1){
+            current = predecessors[current];
+        }
+        return (predecessors[current]==-1) ? -1 : current;
     }
 }
 
-public class dijkstra{
+public class dijkstra {
     public static void main(String[] args){
         Scanner sc = new Scanner(System.in);
         System.out.print("Enter the number of nodes: ");
@@ -81,8 +99,9 @@ public class dijkstra{
             int weight = sc.nextInt();
             graph.addEdge(src, dest, weight);
         }
+        System.out.print("Enter the source node: ");
+        int startNode = sc.nextInt();
         sc.close();
-        System.out.println("\nRouting Tables");
-        graph.displayRoutingTables();
+        graph.dijkstra(startNode);
     }
 }
