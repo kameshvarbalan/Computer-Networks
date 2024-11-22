@@ -1,92 +1,69 @@
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class stopwait{
-    public static void main(String[] args) throws InterruptedException{
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Enter number of frames: ");
-        int frames = sc.nextInt();
-        sc.close();
-        Sender sender = new Sender(frames);
-        while(sender.getCurrentFrame()<frames){
-            sender.sendFrame();
-            Thread.sleep(4000);
-        }     
-        System.out.println("\nAll frames successfully sent and acknowledged\n");
-    }
+    static final int timeout = 3;
 
-    static final int TIMEOUT = 3000;
-    static Random random = new Random();
-    static boolean simulateLoss(double probability){
-        return random.nextDouble() < probability;
-    }
-
-    static class Sender{
-        Timer timer;
-        int frame = 0, totalFrames;
-        boolean ackReceived = false;
-
-        Sender(int totalFrames){
-            this.totalFrames = totalFrames;
+    static class Sender implements Runnable{
+        private Receiver receiver;
+        private int frames;
+        Sender(Receiver receiver, int frames){
+            this.receiver = receiver;
+            this.frames = frames;
         }
-
-        void sendFrame(){
-            if(frame>=totalFrames){
-                return;
-            }
-            System.out.println("\nSender: Sending frame " + frame);
-            if(simulateLoss(0.4)){
-                System.out.println("Sender: Frame " + frame + " lost");
-                return;
-            }
-            Receiver receiver = new Receiver();
-            receiver.receiveFrame(frame, this);
-            startTimer();
-        }
-
-        void receiveAck(int frameNo){
-            if(frameNo==frame){
-                ackReceived = true;
-                System.out.println("Sender: Acknowledgement received for frame " + frame);
-                stopTimer();
-                frame++;
-            }
-        }
-
-        void startTimer(){
-            ackReceived = false;
-            timer = new Timer();
-            timer.schedule(new TimerTask(){
-                @Override
-                public void run(){
-                    if(!ackReceived && frame<totalFrames){
-                    System.out.println("Sender: Timeout - No Acknowledgement received for Frame " + frame);
-                        sendFrame();
+        @Override
+        public void run(){
+            for(int i=0; i<frames; i++){
+                try{
+                    System.out.println("\nSender: Sending frame " + i);
+                    boolean ack = receiver.recieveFrame(i);
+                    if(!ack){
+                        System.out.println("Sender: No ack for frame " + i);
+                        i--;
                     }
+                    else{
+                        System.out.println("Sender: ACK Received for frame " + i);
+                    }
+                    TimeUnit.SECONDS.sleep(timeout);
                 }
-            }, TIMEOUT);
-        }
-        void stopTimer(){
-            if (timer != null){
-                timer.cancel();
+                catch(InterruptedException e){
+                    Thread.currentThread().interrupt();
+                }
             }
-        }
-        int getCurrentFrame(){
-            return frame;
         }
     }
 
     static class Receiver{
-        void receiveFrame(int frameNo, Sender sender){
-            System.out.println("Receiver: Frame " + frameNo + " received");
-            if(simulateLoss(0.4)){
-                System.out.println("Receiver: Acknowledgement lost");
-                return;
+        private Random random = new Random();
+        private boolean recieveFrame(int frame){
+            boolean rec = random.nextDouble()<0.8;
+            if(!rec){
+                System.out.println("Receiver: Timeout - Didnt receive frame " + frame);
+                return false;
             }
-            sendAck(frameNo, sender);
+            else{
+                System.out.println("Reciever: Received frame " + frame);
+                System.out.println("Reciver: Sending ACK for frame " + frame);
+            }
+            boolean ack = random.nextDouble()<0.8;
+            return ack;
         }
+    }
 
-        void sendAck(int frameNo, Sender sender){
-            System.out.println("Receiver: Sending Acknowledgement for frame " + frameNo);
-            sender.receiveAck(frameNo);
+    public static void main(String[] args){
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter number of frames to be transmitted: ");
+        int frames = sc.nextInt();
+        sc.close();
+        Receiver receiver = new Receiver();
+        Sender sender = new Sender(receiver, frames);
+        Thread arq = new Thread(sender);
+        arq.start();
+        try{
+            arq.join();
         }
-    } }
+        catch(InterruptedException e){
+            Thread.currentThread().interrupt();
+        }
+    }
+}
